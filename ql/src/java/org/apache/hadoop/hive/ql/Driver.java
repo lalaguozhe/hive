@@ -1001,7 +1001,15 @@ public class Driver implements CommandProcessor {
 
   private void logCmdInfo(Log log, String cmd, PerfLogger prefLogger){
     StringBuilder sb = new StringBuilder();
-    sb.append(cmd.replace('\t',' ').replace('\n', ' ')).append(COLUMN_SEP)
+    String userName;
+    try {
+      userName = conf.getUser();
+    } catch (IOException e) {
+      e.printStackTrace();
+      userName = "";
+    }
+    sb.append(userName).append(COLUMN_SEP)
+      .append(cmd.replace('\t',' ').replace('\n', ' ')).append(COLUMN_SEP)
       .append(prefLogger.getStartTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
       .append(prefLogger.getEndTime(PerfLogger.DRIVER_RUN)).append(COLUMN_SEP)
       .append(prefLogger.getStartTime(PerfLogger.COMPILE)).append(COLUMN_SEP)
