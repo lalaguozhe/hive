@@ -60,9 +60,13 @@ public abstract class ShimLoader {
    * Factory method to get an instance of HadoopShims based on the
    * version of Hadoop on the classpath.
    */
-  public static synchronized HadoopShims getHadoopShims() {
+  public static HadoopShims getHadoopShims() {
     if (hadoopShims == null) {
-      hadoopShims = loadShims(HADOOP_SHIM_CLASSES, HadoopShims.class);
+      synchronized(ShimLoader.class) {
+        if (hadoopShims == null) {
+          hadoopShims = loadShims(HADOOP_SHIM_CLASSES, HadoopShims.class);
+        }
+      }
     }
     return hadoopShims;
   }
@@ -71,9 +75,13 @@ public abstract class ShimLoader {
    * Factory method to get an instance of JettyShims based on the version
    * of Hadoop on the classpath.
    */
-  public static synchronized JettyShims getJettyShims() {
+  public static JettyShims getJettyShims() {
     if (jettyShims == null) {
-      jettyShims = loadShims(JETTY_SHIM_CLASSES, JettyShims.class);
+      synchronized(ShimLoader.class) {
+        if (jettyShims == null) {
+          jettyShims = loadShims(JETTY_SHIM_CLASSES, JettyShims.class);
+        }
+      }
     }
     return jettyShims;
   }
@@ -116,8 +124,16 @@ public abstract class ShimLoader {
       throw new RuntimeException("Illegal Hadoop Version: " + vers +
           " (expected A.B.* format)");
     }
-    if (Integer.parseInt(parts[0]) > 0){
-      return "0.20S";
+
+    switch (Integer.parseInt(parts[0])) {
+        case 0:
+            break;
+        case 1:
+            return "0.20S";
+        case 2:
+            return "0.23";
+        default:
+            throw new IllegalArgumentException("Unrecognized Hadoop major version number: " + vers);
     }
     String majorVersion = parts[0] + "." + parts[1];
 

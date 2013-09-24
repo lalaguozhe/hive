@@ -61,8 +61,13 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
   private static final int NO_DECIMAL_MASK = 0x7FFFFFFF;
   private static final int HAS_DECIMAL_MASK = 0x80000000;
 
-  private static final DateFormat dateFormat =
-    new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+  private static final ThreadLocal<DateFormat> threadLocalDateFormat =
+      new ThreadLocal<DateFormat>() {
+        @Override
+        protected synchronized DateFormat initialValue() {
+          return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        }
+      };
 
   private Timestamp timestamp = new Timestamp(0);
 
@@ -166,7 +171,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
       return timestamp.getNanos();
     }
 
-    return TimestampWritable.getNanos(currentBytes, offset+4);
+    return hasDecimal() ? TimestampWritable.getNanos(currentBytes, offset+4) : 0;
   }
 
   /**
@@ -183,7 +188,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
    */
   private int getDecimalLength() {
     checkBytes();
-    return WritableUtils.decodeVIntSize(currentBytes[offset+4]);
+    return hasDecimal() ? WritableUtils.decodeVIntSize(currentBytes[offset+4]) : 0;
   }
 
   public Timestamp getTimestamp() {
@@ -324,13 +329,13 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
     if (timestampString.length() > 19) {
       if (timestampString.length() == 21) {
         if (timestampString.substring(19).compareTo(".0") == 0) {
-          return dateFormat.format(timestamp);
+          return threadLocalDateFormat.get().format(timestamp);
         }
       }
-      return dateFormat.format(timestamp) + timestampString.substring(19);
+      return threadLocalDateFormat.get().format(timestamp) + timestampString.substring(19);
     }
 
-    return dateFormat.format(timestamp);
+    return threadLocalDateFormat.get().format(timestamp);
   }
 
   @Override
@@ -393,7 +398,7 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
     long millis = t.getTime();
     int nanos = t.getNanos();
 
-    boolean hasDecimal = setNanosBytes(nanos, b, offset+4);
+    boolean hasDecimal = nanos != 0 && setNanosBytes(nanos, b, offset+4);
     setSecondsBytes(millis, b, offset, hasDecimal);
   }
 
@@ -451,6 +456,17 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
     return doubleToTimestamp((double) f);
   }
 
+  public static Timestamp decimalToTimestamp(BigDecimal d) {
+    BigDecimal seconds = new BigDecimal(d.longValue());
+    long millis = d.multiply(new BigDecimal(1000)).longValue();
+    int nanos = d.subtract(seconds).multiply(new BigDecimal(1000000000)).intValue();
+
+    Timestamp t = new Timestamp(millis);
+    t.setNanos(nanos);
+
+    return t;
+  }
+
   public static Timestamp doubleToTimestamp(double f) {
     long seconds = (long) f;
 
@@ -471,14 +487,21 @@ public class TimestampWritable implements WritableComparable<TimestampWritable> 
   }
 
   public static void setTimestamp(Timestamp t, byte[] bytes, int offset) {
+    boolean hasDecimal = hasDecimal(bytes[offset]);
     t.setTime(((long) TimestampWritable.getSeconds(bytes, offset)) * 1000);
-    t.setNanos(TimestampWritable.getNanos(bytes, offset+4));
+    if (hasDecimal) {
+      t.setNanos(TimestampWritable.getNanos(bytes, offset+4));
+    }
   }
 
   public static Timestamp createTimestamp(byte[] bytes, int offset) {
     Timestamp t = new Timestamp(0);
     TimestampWritable.setTimestamp(t, bytes, offset);
     return t;
+  }
+
+  public boolean hasDecimal() {
+    return hasDecimal(currentBytes[offset]);
   }
 
   /**
