@@ -12,6 +12,7 @@ import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.metadata.Table;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.session.SessionState.LogHelper;
+import org.apache.hadoop.hive.shims.ShimLoader;
 
 public class DPSemanticAnalyzerHook extends AbstractSemanticAnalyzerHook {
   private final SessionState ss = SessionState.get();
@@ -21,14 +22,29 @@ public class DPSemanticAnalyzerHook extends AbstractSemanticAnalyzerHook {
   private String currentDatabase = "default";
   private String tableAlias = "";
   private String tableName = "";
+  private String tableDatabase = "";
   private Boolean needCheckPartition = false;
+  private static List<String> noNeedCheckKeywords = new ArrayList<String>();
+
+  static {
+    // noNeedCheckKeywords.add("insert");
+    // noNeedCheckKeywords.add("create");
+  }
 
   @Override
   public ASTNode preAnalyze(HiveSemanticAnalyzerHookContext context, ASTNode ast)
       throws SemanticException {
     try {
       LogHelper console = SessionState.getConsole();
-      hql = ss.getCmd();
+      hql = ss.getCmd().toLowerCase();
+      String username = ShimLoader.getHadoopShims().getUserName(context.getConf());
+
+      for (String word : noNeedCheckKeywords) {
+        if (hql.contains(word)) {
+          return ast;
+        }
+      }
+
       if (hql.contains("on")) {
         onOrWhereHql = hql.substring(hql.indexOf("on"));
       } else if (hql.contains(" where ")) {
@@ -46,7 +62,7 @@ public class DPSemanticAnalyzerHook extends AbstractSemanticAnalyzerHook {
         extractFromClause((ASTNode) ast.getChild(0));
 
         if (needCheckPartition && !StringUtils.isBlank(tableName)) {
-          String dbname = currentDatabase;
+          String dbname = StringUtils.isEmpty(tableDatabase) ? currentDatabase : tableDatabase;
           String tbname = tableName;
           String[] parts = tableName.split(".");
           if (parts.length == 2) {
@@ -56,7 +72,8 @@ public class DPSemanticAnalyzerHook extends AbstractSemanticAnalyzerHook {
           Table t = hive.getTable(dbname, tbname);
           if (t.isPartitioned()) {
             if (StringUtils.isBlank(onOrWhereHql)) {
-              console.printError("Not Specify where or on clause in HQL:" + hql);
+              console.printError("Not Specify where or on clause in HQL:" + hql + " username:"
+                  + username);
             } else {
               List<FieldSchema> partitionKeys = t.getPartitionKeys();
               List<String> partitionNames = new ArrayList<String>();
@@ -66,7 +83,8 @@ public class DPSemanticAnalyzerHook extends AbstractSemanticAnalyzerHook {
 
               if (!containsPartCond(partitionNames, onOrWhereHql, tableAlias)) {
                 console
-                    .printError("Hql is not efficient, Please specify partition condition! HQL:" + hql);
+                    .printError("Hql is not efficient, Please specify partition condition! HQL:"
+                        + hql + " username:" + username);
               }
             }
           }
@@ -98,8 +116,17 @@ public class DPSemanticAnalyzerHook extends AbstractSemanticAnalyzerHook {
         ASTNode tabNameNode = (ASTNode) (refNode.getChild(0));
         int refNodeChildCount = refNode.getChildCount();
         if (tabNameNode.getToken().getType() == HiveParser.TOK_TABNAME) {
-          tableName = BaseSemanticAnalyzer.getUnescapedName((ASTNode) tabNameNode.getChild(0))
-              .toLowerCase();
+          if (tabNameNode.getChildCount() == 2) {
+            tableDatabase = tabNameNode.getChild(0).getText().toLowerCase();
+            tableName = BaseSemanticAnalyzer.getUnescapedName((ASTNode) tabNameNode.getChild(1))
+                .toLowerCase();
+          } else if (tabNameNode.getChildCount() == 1) {
+            tableName = BaseSemanticAnalyzer.getUnescapedName((ASTNode) tabNameNode.getChild(0))
+                .toLowerCase();
+          } else {
+            return;
+          }
+
           if (refNodeChildCount == 2) {
             tableAlias = BaseSemanticAnalyzer.unescapeIdentifier(refNode.getChild(1).getText())
                 .toLowerCase();
