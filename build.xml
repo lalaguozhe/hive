@@ -58,6 +58,11 @@
   <property name="rat.build.dir" location="${build.dir.hive}/rat"/>
   <property name="md5sum.format" value="{0}  {1}"/>
 
+  <property name="deb.control.dir" location="${hive.root}/deb"/>
+  <property name="deb.build.dir" location="${hive.root}/build"/>
+  <property name="deb.control.build.dir" location="${deb.build.dir}/deb"/>
+  <property name="deb.prefix" value="/usr/share/hive"/>
+
   <!-- Ignore Postgres upgrade scripts unless 'include.postgres' is true -->
   <condition property="metastore.excludes"
              value="${vcs.excludes}" else="${vcs.excludes},**/postgres/**">
@@ -120,6 +125,18 @@
 	<property name="thrift.home" value="${thrift.home}"/>
         <property name="build.dir.hive" location="${build.dir.hive}"/>
         <filelist dir="." files="ql/build.xml,contrib/build.xml,hbase-handler/build.xml,hwi/build.xml,jdbc/build.xml,metastore/build.xml,odbc/build.xml,serde/build.xml,service/build.xml"/>
+      </subant>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="iterate-test-subset">
+    <attribute name="target"/>
+    <attribute name="filelist"/>
+    <sequential>
+      <subant target="@{target}">
+        <property name="thrift.home" value="${thrift.home}"/>
+        <property name="build.dir.hive" location="${build.dir.hive}"/>
+        <filelist dir="." files="@{filelist}"/>
       </subant>
     </sequential>
   </macrodef>
@@ -306,6 +323,51 @@
           description="Build Java test artifacts">
     <echo message="Project: ${ant.project.name}"/>
     <iterate-test target="compile-test"/>
+    <iterate-test target="test-jar"/>
+  </target>
+
+  <target name="source-jar" depends="jar"
+          description="Build Java source artifacts">
+    <echo message="Project: ${ant.project.name}"/>
+    <iterate target="source-jar"/>
+    <subant target="source-jar">
+      <fileset dir="." includes="ant/build.xml"/>
+    </subant>
+  </target>
+
+  <target name="hive-exec-test-jar" depends="jar,mvn-taskdef"
+          description="Build Java test artifacts for QL">
+    <echo message="Project: ${ant.project.name}"/>
+    <iterate-test-subset filelist="ql/build.xml" target="gen-test"/>
+    <iterate-test-subset filelist="ql/build.xml" target="compile-test"/>
+    <iterate-test-subset filelist="ql/build.xml" target="hive-exec-test-jar"/>
+    <if>
+      <isset property="mvn.publish.repoUrl" />
+      <then>
+        <artifact:mvn>
+          <arg value="org.apache.maven.plugins:maven-deploy-plugin:2.6:deploy-file" />
+          <arg value="-Durl=${mvn.publish.repoUrl}" />
+          <arg value="-DrepositoryId=${mvn.publish.repo}" />
+          <arg value="-Dfile=${build.dir.hive}/ql/hive-exec-test-${version}.jar" />
+          <arg value="-DpomFile=${build.dir.hive}/ql/hive-exec-test-${version}.pom" />
+          <arg value="-DgroupId=org.apache.hive" />
+          <arg value="-DartifactId=hive-exec-test" />
+          <arg value="-Dpackaging=jar" />
+        </artifact:mvn>
+        <artifact:mvn>
+          <arg value="org.apache.maven.plugins:maven-deploy-plugin:2.6:deploy-file" />
+          <arg value="-Durl=${mvn.publish.repoUrl}" />
+          <arg value="-DrepositoryId=${mvn.publish.repo}" />
+          <arg value="-Dfile=${build.dir.hive}/ql/hive-exec-test-${version}-sources.jar" />
+          <arg value="-DgeneratePom=false" />
+          <arg value="-DgroupId=org.apache.hive" />
+          <arg value="-DartifactId=hive-exec-test" />
+          <arg value="-Dversion=${version}" />
+          <arg value="-Dpackaging=java-source" />
+          <arg value="-Dclassifier=sources" />
+        </artifact:mvn>
+      </then>
+    </if>
   </target>
 
   <target name="test" depends="clean-test,jar-test" description="Run tests">
@@ -508,6 +570,7 @@
       <fileset dir="${build.dir.hive}/ivy/lib/default">
         <include name="*.jar"/>
         <exclude name="*.tar.gz"/>
+        <exclude name="hadoop-*.jar" />
 	<exclude name="**/*high-scale-lib-*"/>
         <exclude name="**/hamcrest-core-*jar"/>
         <exclude name="**/junit*.jar"/>
@@ -657,7 +720,8 @@
     <antcall target="docs-anakia"/>
   </target>
 
-  <target name="javadoc" depends="package" description="Generate Javadoc">
+  <target name="javadoc" depends="package" description="Generate Javadoc"
+      unless="skip.javadoc">
     <echo message="Project: ${ant.project.name}"/>
     <mkdir dir="${build.javadoc}"/>
     <javadoc
@@ -701,13 +765,6 @@
       <link href="${javadoc.link.java}"/>
 
       <classpath >
-        <fileset dir="${hadoop.root}/lib">
-          <include name="**/*.jar" />
-          <exclude name="**/excluded/" />
-	  <exclude name="**/commons-logging-*.jar" />
-	  <exclude name="**/commons-codec-*.jar" />
-        </fileset>
-	<pathelement path="${hadoop.oldstyle-name.test.jar}"/>
         <path refid="classpath" />
         <pathelement path="${java.class.path}"/>
       </classpath>
@@ -785,6 +842,42 @@
     </macro_tar>
   </target>
 
+  <!-- ================================================================== -->
+  <!-- Debian packaging                                                   -->
+  <!-- ================================================================== -->
+
+  <target name="ivy-resolve-deb" depends="ivy-init-settings">
+    <echo message="Project: ${ant.project.name}"/>
+    <ivy:resolve settingsRef="${ant.project.name}.ivy.settings" conf="deb"
+                 log="${ivyresolvelog}"/>
+  </target>
+
+  <target name="ivy-retrieve-deb" depends="ivy-resolve-deb"
+    description="Retrieve Ivy-managed artifacts for Debian packaging">
+    <echo message="Project: ${ant.project.name}"/>
+    <ivy:retrieve settingsRef="${ant.project.name}.ivy.settings"
+      pattern="${build.ivy.lib.dir}/${ivy.artifact.retrieve.pattern}"
+      log="${ivyresolvelog}"/>
+    <ivy:cachepath pathid="deb-classpath" conf="deb"/>
+  </target>
+
+  <target name="deb" depends="binary,ivy-resolve-deb,ivy-retrieve-deb">
+    <copy todir="${deb.control.build.dir}">
+      <fileset dir="${deb.control.dir}"/>
+      <filterset begintoken="[[" endtoken="]]">
+        <filter token="version" value="${version}"/>
+      </filterset>
+    </copy>
+    <taskdef name="deb" classname="org.vafer.jdeb.ant.DebAntTask">
+      <classpath refid="deb-classpath"/>
+    </taskdef>
+    <deb destfile="${deb.build.dir}/${name}-bin_${version}_all.deb"
+        control="${deb.control.build.dir}">
+      <data src="${build.dir.hive}/${bin.final.name}.tar.gz" type="archive">
+        <mapper type="perm" strip="1" prefix="${deb.prefix}"/>
+      </data>
+    </deb>
+  </target>
 
   <!-- ================================================================== -->
   <!-- RAT                                                                -->
@@ -977,7 +1070,7 @@
 	     uri="urn:maven-artifact-ant" classpathref="maven-ant-tasks.classpath" />
   </target>
   
-  <target name="maven-build" depends="jar" description="Build Maven artifacts">
+  <target name="maven-build" depends="package,source-jar" description="Build Maven artifacts">
     <echo message="Project: ${ant.project.name}"/>
     <!-- create jars, poms licences directory -->
     <mkdir dir="${mvn.jar.dir}" />
@@ -1015,6 +1108,36 @@
     <copy file="${build.dir.hive}/pdk/hive-pdk-${version}.jar"
           todir="${mvn.jar.dir}" />
     <copy file="${build.dir.hive}/builtins/hive-builtins-${version}.jar"
+          todir="${mvn.jar.dir}" />
+
+    <!-- copy the source jars  -->
+    <copy file="${build.dir.hive}/anttasks/hive-anttasks-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/cli/hive-cli-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/common/hive-common-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/contrib/hive-contrib-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/hbase-handler/hive-hbase-handler-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/hwi/hive-hwi-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/jdbc/hive-jdbc-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/metastore/hive-metastore-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/ql/hive-exec-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/serde/hive-serde-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/service/hive-service-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/shims/hive-shims-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/pdk/hive-pdk-${version}-sources.jar"
+          todir="${mvn.jar.dir}" />
+    <copy file="${build.dir.hive}/builtins/hive-builtins-${version}-sources.jar"
           todir="${mvn.jar.dir}" />
 
     <!-- copy over maven pom files created using the make-pom target and rename to maven convention -->
@@ -1100,7 +1223,35 @@
           <artifact:install 
               file="${mvn.jar.dir}/hive-${hive.project}-${version}.jar">
             <pom refid="hive.project.pom" />
+            <attach file="${mvn.jar.dir}/hive-${hive.project}-${version}-sources.jar"
+              type="jar" classifier="sources"/>
           </artifact:install>
+        </then>
+      </elseif>
+      <elseif>
+        <isset property="mvn.publish.repoUrl"/>
+        <then>
+          <echo message="Deploying to ${mvn.publish.repo}, ${mvn.publish.repoUrl}"/>
+          <artifact:mvn>
+            <arg value="org.apache.maven.plugins:maven-deploy-plugin:2.6:deploy-file" />
+            <arg value="-Durl=${mvn.publish.repoUrl}" />
+            <arg value="-DrepositoryId=${mvn.publish.repo}" />
+            <arg value="-DpomFile=${mvn.pom.dir}/hive-${hive.project}-${version}.pom" />
+            <arg value="-Dfile=${mvn.jar.dir}/hive-${hive.project}-${version}.jar" />
+          </artifact:mvn>
+          <echo message="Deploying to ${mvn.publish.repo}, ${mvn.publish.repoUrl}"/>
+          <artifact:mvn>
+            <arg value="org.apache.maven.plugins:maven-deploy-plugin:2.6:deploy-file" />
+            <arg value="-DgroupId=org.apache.hive" />
+            <arg value="-DartifactId=hive-${hive.project}" />
+            <arg value="-Dversion=${version}" />
+            <arg value="-Durl=${mvn.publish.repoUrl}" />
+            <arg value="-DrepositoryId=${mvn.publish.repo}" />
+            <arg value="-DgeneratePom=false" />
+            <arg value="-Dfile=${mvn.jar.dir}/hive-${hive.project}-${version}-sources.jar" />
+            <arg value="-Dpackaging=java-source" />
+            <arg value="-Dclassifier=sources" />
+          </artifact:mvn>
         </then>
       </elseif>
       <else>
@@ -1110,6 +1261,8 @@
           <remoteRepository
               id="apache.snapshots.https"
               url="https://repository.apache.org/content/repositories/snapshots" />
+          <attach file="${mvn.jar.dir}/hive-${hive.project}-${version}-sources.jar"
+            type="jar" classifier="sources"/>
         </artifact:deploy>
       </else>
     </if>

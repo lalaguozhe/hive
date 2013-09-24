@@ -1,6 +1,10 @@
-PREHOOK: query: create table nzhang_Tmp(a int, b string)
+PREHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20)
+
+create table nzhang_Tmp(a int, b string)
 PREHOOK: type: CREATETABLE
-POSTHOOK: query: create table nzhang_Tmp(a int, b string)
+POSTHOOK: query: -- EXCLUDE_HADOOP_MAJOR_VERSIONS(0.20)
+
+create table nzhang_Tmp(a int, b string)
 POSTHOOK: type: CREATETABLE
 POSTHOOK: Output: default@nzhang_Tmp
 PREHOOK: query: select * from nzhang_Tmp
@@ -476,7 +480,7 @@ Table Parameters:
 	numPartitions       	0                   
 	numRows             	10                  
 	rawDataSize         	120                 
-	totalSize           	294                 
+	totalSize           	199                 
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 
@@ -543,7 +547,7 @@ Table Parameters:
 	numPartitions       	0                   
 	numRows             	10                  
 	rawDataSize         	120                 
-	totalSize           	294                 
+	totalSize           	199                 
 #### A masked pattern was here ####
 	 	 
 # Storage Information	 	 

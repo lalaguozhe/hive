@@ -147,7 +147,7 @@ public final class LazyBinaryUtils {
    *          modify this byteinfo object and return it
    */
   public static void checkObjectByteInfo(ObjectInspector objectInspector,
-      byte[] bytes, int offset, RecordInfo recordInfo) {
+      byte[] bytes, int offset, RecordInfo recordInfo, VInt vInt) {
     Category category = objectInspector.getCategory();
     switch (category) {
     case PRIMITIVE:
@@ -353,9 +353,10 @@ public final class LazyBinaryUtils {
     return 1 + len;
   }
 
-  private static byte[] vLongBytes = new byte[9];
+  //private static byte[] vLongBytes = new byte[9];
 
   public static void writeVLong(Output byteStream, long l) {
+    byte[] vLongBytes = new byte[9];
     int len = LazyBinaryUtils.writeVLongToByteArray(vLongBytes, l);
     byteStream.write(vLongBytes, 0, len);
   }
