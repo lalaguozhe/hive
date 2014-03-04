@@ -34,9 +34,4 @@ public abstract class SettableStructObjectInspector extends
    */
   public abstract Object setStructFieldData(Object struct, StructField field,
       Object fieldValue);
-
-  @Override
-  public boolean isSettable() {
-    return true;
-  }
 }

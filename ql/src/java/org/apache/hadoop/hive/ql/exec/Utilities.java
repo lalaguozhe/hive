@@ -693,7 +693,7 @@ public final class Utilities {
 
   public static TableDesc getTableDesc(Table tbl) {
     return (new TableDesc(tbl.getDeserializer().getClass(), tbl.getInputFormatClass(), tbl
-        .getOutputFormatClass(), tbl.getMetadata()));
+        .getOutputFormatClass(), tbl.getSchema()));
   }
 
   // column names and column types are all delimited by comma

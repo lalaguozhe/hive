@@ -87,7 +87,7 @@ public class PartitionDesc implements Serializable, Cloneable {
   public PartitionDesc(final org.apache.hadoop.hive.ql.metadata.Partition part)
       throws HiveException {
     tableDesc = Utilities.getTableDesc(part.getTable());
-    properties = part.getMetadataFromPartitionSchema();
+    properties = part.getSchema();
     partSpec = part.getSpec();
     deserializerClass = part.getDeserializer(properties).getClass();
     inputFileFormatClass = part.getInputFormatClass();

@@ -25,12 +25,12 @@ import java.util.Map;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.JavaStringObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorConverter;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableHiveDecimalObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableBinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableBooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableByteObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableDoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableFloatObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableHiveDecimalObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableIntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableLongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.SettableShortObjectInspector;
@@ -170,51 +170,6 @@ public final class ObjectInspectorConverters {
     default:
       throw new RuntimeException("Hive internal error: desired OI of "
           + inputOI.getTypeName() + " not supported yet.");
-    }
-  }
-
-  public static ObjectInspector getConvertedOI(
-      ObjectInspector inputOI,
-      ObjectInspector outputOI) {
-    // If the inputOI is the same as the outputOI, just return it
-    if (inputOI.equals(outputOI)) {
-      return outputOI;
-    }
-    switch (outputOI.getCategory()) {
-    case PRIMITIVE:
-      return outputOI;
-    case STRUCT:
-      StructObjectInspector structOutputOI = (StructObjectInspector) outputOI;
-      if (structOutputOI.isSettable()) {
-        return outputOI;
-      }
-      else {
-        // create a standard settable struct object inspector
-        List<? extends StructField> listFields = structOutputOI.getAllStructFieldRefs();
-        List<String> structFieldNames = new ArrayList<String>(listFields.size());
-        List<ObjectInspector> structFieldObjectInspectors = new ArrayList<ObjectInspector>(
-            listFields.size());
-
-        for (StructField listField : listFields) {
-          structFieldNames.add(listField.getFieldName());
-          structFieldObjectInspectors.add(
-              getSettableConvertedOI(listField.getFieldObjectInspector()));
-        }
-
-        StandardStructObjectInspector structStandardOutputOI = ObjectInspectorFactory
-            .getStandardStructObjectInspector(
-                structFieldNames,
-                structFieldObjectInspectors);
-        return structStandardOutputOI;
-      }
-    case LIST:
-      return outputOI;
-    case MAP:
-      return outputOI;
-    default:
-      throw new RuntimeException("Hive internal error: conversion of "
-          + inputOI.getTypeName() + " to " + outputOI.getTypeName()
-          + " not supported yet.");
     }
   }
 

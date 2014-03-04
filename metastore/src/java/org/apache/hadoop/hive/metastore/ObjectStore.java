@@ -19,7 +19,6 @@
 package org.apache.hadoop.hive.metastore;
 
 import static org.apache.commons.lang.StringUtils.join;
-import static org.apache.commons.lang.StringUtils.repeat;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -34,7 +33,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -1293,7 +1291,7 @@ public class ObjectStore implements RawStore, Configurable {
       return null;
     }
     return new Partition(mpart.getValues(), dbName, tblName, mpart.getCreateTime(),
-        mpart.getLastAccessTime(), convertToStorageDescriptor(mpart.getSd(), false),
+        mpart.getLastAccessTime(), convertToStorageDescriptor(mpart.getSd(), true),
         mpart.getParameters());
   }
 

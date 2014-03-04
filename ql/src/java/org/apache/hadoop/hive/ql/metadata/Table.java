@@ -231,7 +231,7 @@ public class Table implements Serializable {
     tTable.getSd().setOutputFormat(outputFormatClass.getName());
   }
 
-  final public Properties getMetadata() {
+  final public Properties getSchema() {
     return MetaStoreUtils.getTableMetadata(tTable);
   }
 

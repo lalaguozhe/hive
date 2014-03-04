@@ -56,11 +56,32 @@ public class NullStructSerDe extends AbstractSerDe {
     return null;
   }
 
-  private static ObjectInspector nullStructOI = new NullStructSerDeObjectInspector();
-
   @Override
   public ObjectInspector getObjectInspector() throws SerDeException {
-    return nullStructOI;
+    return new StructObjectInspector() {
+      public String getTypeName() {
+        return "null";
+      }
+      public Category getCategory() {
+        return Category.PRIMITIVE;
+      }
+      @Override
+      public StructField getStructFieldRef(String fieldName) {
+        return null;
+      }
+      @Override
+      public List<NullStructField> getAllStructFieldRefs() {
+        return new ArrayList<NullStructField>();
+      }
+      @Override
+      public Object getStructFieldData(Object data, StructField fieldRef) {
+        return null;
+      }
+      @Override
+      public List<Object> getStructFieldsDataAsList(Object data) {
+        return new ArrayList<Object>();
+      }
+    };
   }
 
   @Override
