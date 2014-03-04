@@ -30,6 +30,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -159,6 +160,11 @@ public class HiveMetaStoreClient implements IMetaStoreClient {
     } else {
       LOG.error("NOT getting uris from conf");
       throw new MetaException("MetaStoreURIs not found in conf file");
+    }
+
+    // shuffle metastoreUris for client-side load balance metastore connection
+    if (metastoreUris.length > 1) {
+      Collections.shuffle(Arrays.asList(metastoreUris));
     }
     // finally open the store
     open();
