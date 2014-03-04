@@ -49,6 +49,6 @@
                 transitive="false"/>
     <dependency org="org.apache.derby" name="derby" rev="${derby.version}"/>
     <dependency org="asm" name="asm" rev="${asm.version}"/>
-
+    <dependency org="mysql" name="mysql-connector-java" rev="${mysql-connector-java.version}"/>
   </dependencies>
 </ivy-module>
