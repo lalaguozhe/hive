@@ -113,7 +113,7 @@ public class Driver implements CommandProcessor {
   static final private LogHelper console = new LogHelper(LOG);
 
   private static final Object compileMonitor = new Object();
-  
+
   private int maxRows = 100;
   ByteStream.Output bos = new ByteStream.Output();
 
@@ -540,6 +540,17 @@ public class Driver implements CommandProcessor {
                 HiveOperation.CREATETABLE_AS_SELECT.getOutputRequiredPrivileges());
           }
         }
+      }
+
+
+      if (op.equals(HiveOperation.GRANT_PRIVILEGE) ||
+          op.equals(HiveOperation.REVOKE_PRIVILEGE) ||
+          op.equals(HiveOperation.CREATEROLE) ||
+          op.equals(HiveOperation.DROPROLE) ||
+          op.equals(HiveOperation.GRANT_ROLE) ||
+          op.equals(HiveOperation.REVOKE_ROLE)){
+        ss.getAuthorizer().authorize(
+            op.getInputRequiredPrivileges(), op.getOutputRequiredPrivileges());
       }
       if (outputs != null && outputs.size() > 0) {
         for (WriteEntity write : outputs) {
