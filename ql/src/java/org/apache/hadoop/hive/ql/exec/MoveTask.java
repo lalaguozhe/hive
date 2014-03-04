@@ -32,6 +32,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FsShell;
 import org.apache.hadoop.fs.LocalFileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -84,6 +85,14 @@ public class MoveTask extends Task<MoveWork> implements Serializable {
       String mesg_detail = " from " + sourcePath.toString();
       console.printInfo(mesg, mesg_detail);
 
+      // keep the targetPath group as the same as before when rename if targetPath exists, otherwise keep the parent's. fixed by guangbin.zhu
+      String originGroup = null;
+      if(targetPath != null && fs.exists(targetPath)){
+        originGroup = fs.getFileStatus(targetPath).getGroup();
+      } else {
+        originGroup = fs.getFileStatus(targetPath.getParent()).getGroup();
+      }
+
       // delete the output directory if it already exists
       fs.delete(targetPath, true);
       // if source exists, rename. Otherwise, create a empty directory
@@ -108,6 +117,17 @@ public class MoveTask extends Task<MoveWork> implements Serializable {
         }
       } else if (!fs.mkdirs(targetPath)) {
         throw new HiveException("Unable to make directory: " + targetPath);
+      }
+      // suppose the user scratchdir's group owner is acl
+      if(originGroup != null && !"acl".equalsIgnoreCase(originGroup)){
+        try {
+          FsShell fshell = new FsShell();
+          fshell.setConf(conf);
+          fshell.run(new String[]{"-chgrp", "-R", originGroup, targetPath.toString()});
+        } catch (Exception e) {
+          LOG.warn("cannot chgrp " + targetPath.toString() + " to "+ originGroup + e.getMessage());
+          e.printStackTrace();
+        }
       }
     } else {
       // This is a local file

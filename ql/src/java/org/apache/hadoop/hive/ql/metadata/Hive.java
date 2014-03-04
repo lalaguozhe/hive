@@ -2129,16 +2129,21 @@ private void constructOneLBLocationMap(FileStatus fSta,
 
   static protected void copyFiles(HiveConf conf, Path srcf, Path destf, FileSystem fs)
       throws HiveException {
+    //keep the destf group as the same as before when rename if destf exists, fixed by guangbin.zhu
+    String originGroup = null;
+
     try {
       // create the destination if it does not exist
       if (!fs.exists(destf)) {
         fs.mkdirs(destf);
       }
+      originGroup = fs.getFileStatus(destf).getGroup();
     } catch (IOException e) {
       throw new HiveException(
           "copyFiles: error while checking/creating destination directory!!!",
           e);
     }
+    LOG.debug("Copying files from "+ srcf.toString() + " to " + destf.toString() + ", destf originGroup: "+ originGroup );
 
     FileStatus[] srcs;
     try {
@@ -2164,6 +2169,18 @@ private void constructOneLBLocationMap(FileStatus fSta,
           }
         }
       }
+      // suppose user scratchdir's groupname is acl
+      if(originGroup != null && !"acl".equalsIgnoreCase(originGroup)){
+        try {
+          FsShell fshell = new FsShell();
+          fshell.setConf(conf);
+          fshell.run(new String[]{"-chgrp", "-R",originGroup, destf.toString()});
+        } catch (Exception e) {
+          LOG.warn("cannot chgrp " + destf.toString() + " to "+ originGroup + e.getMessage());
+          e.printStackTrace();
+        }
+      }
+      LOG.debug("Directory " + destf.toString() + "chgrp to "+ originGroup);
     } catch (IOException e) {
       throw new HiveException("copyFiles: error while moving files!!!", e);
     }
@@ -2224,8 +2241,13 @@ private void constructOneLBLocationMap(FileStatus fSta,
         if (!fs.exists(destf.getParent())) {
           fs.mkdirs(destf.getParent());
         }
+        // keep the destf group as the same as before when rename if destf exists, otherwise keep the parent's. fixed by guangbin.zhu
+        String originGroup = null;
         if (fs.exists(destf)) {
+          originGroup = fs.getFileStatus(destf).getGroup();
           fs.delete(destf, true);
+        } else {
+          originGroup = fs.getFileStatus(destf.getParent()).getGroup();
         }
 
         boolean b = fs.rename(srcs[0].getPath(), destf);
@@ -2234,6 +2256,17 @@ private void constructOneLBLocationMap(FileStatus fSta,
               + " to destination directory: " + destf);
         }
         LOG.debug("Renaming:" + srcf.toString() + " to " + destf.toString()  + ",Status:" + b);
+        if(originGroup != null && !"acl".equalsIgnoreCase(originGroup)){
+          try {
+            FsShell fshell = new FsShell();
+            fshell.setConf(conf);
+            fshell.run(new String[]{"-chgrp", "-R",originGroup,destf.toString()});
+          } catch (Exception e) {
+            LOG.warn("cannot chgrp " + destf.toString() + " to "+ originGroup + e.getMessage());
+            e.printStackTrace();
+          }
+        }
+        LOG.debug("Directory " + destf.toString() + "chgrp to "+ originGroup);
       } else { // srcf is a file or pattern containing wildcards
         if (!fs.exists(destf)) {
           fs.mkdirs(destf);
@@ -2245,6 +2278,18 @@ private void constructOneLBLocationMap(FileStatus fSta,
               throw new IOException("Error moving: " + sdpair[0] + " into: " + sdpair[1]);
             }
           }
+        }
+
+        String originGroup = fs.getFileStatus(destf).getGroup();
+        if(originGroup != null && !"acl".equalsIgnoreCase(originGroup)){
+          try {
+            FsShell fshell = new FsShell();
+            fshell.setConf(conf);
+            fshell.run(new String[]{"-chgrp", "-R",originGroup,destf.toString()});
+           } catch (Exception e) {
+             LOG.warn("cannot chgrp " + destf.toString() + " to "+ originGroup + e.getMessage());
+             e.printStackTrace();
+           }
         }
       }
     } catch (IOException e) {
