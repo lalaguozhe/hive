@@ -182,7 +182,8 @@ public class Utils {
     JdbcConnectionParams connParams = new JdbcConnectionParams();
 
     if (!uri.startsWith(URL_PREFIX)) {
-      throw new IllegalArgumentException("Bad URL format");
+      return null;
+//      throw new IllegalArgumentException("Bad URL format");
     }
 
     // Don't parse URL with no other configuration.

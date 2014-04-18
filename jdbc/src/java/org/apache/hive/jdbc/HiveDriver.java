@@ -101,7 +101,11 @@ public class HiveDriver implements Driver {
   }
 
   public Connection connect(String url, Properties info) throws SQLException {
-    return new HiveConnection(url, info);
+      if (Utils.parseURL(url) == null){
+          return null;
+      }else {
+          return new HiveConnection(url, info);
+      }
   }
 
   /**
