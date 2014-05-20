@@ -326,6 +326,11 @@ public final class OpProcFactory {
         // these equal-length lists of equal columns (for example if we had the
         // query SELECT * FROM a join b on a.col=b.col and a.col2=b.col2 left
         // outer join c on b.col=c.col), more than one join operator is used.
+        if (owi.getParseContext() == null || owi.getParseContext().getJoinContext() == null || owi.getParseContext().getJoinContext().get(nd) == null ||
+                owi.getParseContext().getJoinContext().get(nd).getExpressions() == null) {
+          LOG.info("OpWalkerInfo containes null property, just return and bypass it");
+          return;
+        }
         ArrayList<ArrayList<ASTNode>> eqExpressions =
             owi.getParseContext().getJoinContext().get(nd).getExpressions();
         int numColumns = eqExpressions.size();
