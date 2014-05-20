@@ -203,7 +203,12 @@ final class OrcStruct implements Writable {
 
     @Override
     public Object getStructFieldData(Object object, StructField field) {
-      return ((OrcStruct) object).fields[((Field) field).offset];
+      int offset = ((Field) field).offset;
+      OrcStruct struct = (OrcStruct) object;
+      if (offset >= struct.fields.length) {
+        return null;
+      }
+      return struct.fields[offset];
     }
 
     @Override
